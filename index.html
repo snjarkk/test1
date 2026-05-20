@@ -2,31 +2,45 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0,       maximum-scale=1.0, user-scalable=no">
-    <title>ARナビ Pro (完全復旧版)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ARナビ Pro (高精度・ガイド付)</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow:       hidden; background-color: #000; font-family: -apple-system, sans-serif; }
-        #camera-view { position: fixed; top: 0; left: 0; width: 100%; height: 100%;       object-fit: cover; z-index: 1; }
-        #ui-layer { position: fixed; bottom: 0; left: 0; width: 100%; z-index: 10;       color: white; padding: 15px; pointer-events: none; box-sizing: border-box; }
-        .input-form { background: rgba(0, 0, 0, 0.85); padding: 15px; border-radius:       20px; pointer-events: auto; border: 1px solid rgba(255, 255, 255, 0.3);       margin-bottom: env(safe-area-inset-bottom); transition: transform 0.4s       cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s; }
-        .input-form.collapsed { transform: translateY(calc(100% - 50px)); opacity:       0.9; }
-        .form-header { display: flex; justify-content: space-between; align-items:       center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid       rgba(255,255,255,0.2); }
-        .toggle-btn { background: #007AFF; border: none; color: white; padding: 6px       16px; border-radius: 20px; font-size: 14px; font-weight: bold; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: -apple-system, sans-serif; }
+        #camera-view { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        
+        #ui-layer { position: fixed; bottom: 0; left: 0; width: 100%; z-index: 10; color: white; padding: 15px; pointer-events: none; box-sizing: border-box; }
+        .input-form { background: rgba(0, 0, 0, 0.85); padding: 15px; border-radius: 20px; pointer-events: auto; border: 1px solid rgba(255, 255, 255, 0.3); margin-bottom: env(safe-area-inset-bottom); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s; }
+        .input-form.collapsed { transform: translateY(calc(100% - 50px)); opacity: 0.9; }
+        
+        .form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.2); }
+        .toggle-btn { background: #007AFF; border: none; color: white; padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: bold; }
+        
         .input-group { margin-bottom: 10px; }
         label { display: block; font-size: 11px; margin-bottom: 3px; color: #aaa; }
-        select, input { width: 100%; padding: 12px; border-radius: 8px; border:       none; background: #222; color: #fff; font-size: 16px; box-sizing: border-box; }
-        #start-btn { width: 100%; padding: 16px; background: #007AFF; color: white;       border: none; border-radius: 10px; font-weight: bold; font-size: 18px; margin-top:       5px; box-shadow: 0 4px 12px rgba(0,122,255,0.4); }
-        #ar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%;       z-index: 5; pointer-events: none; }
-        #target-dot { position: absolute; width: 50px; height: 50px; background:       radial-gradient(circle, #ff2d55 0%, #ff3b30 100%); border: 2px solid white;       border-radius: 50%; transform: translate(-50%, -50%); display: none; box-shadow: 0 0       30px rgba(255, 59, 48, 1.0); }
-        #distance-info { position: fixed; top: 50px; left: 0; width: 100%;       text-align: center; color: white; z-index: 10; pointer-events: none; }
-        .dist-text { font-size: 36px; font-weight: bold; text-shadow: 0 2px 12px       #000; }
-        .alt-text { font-size: 18px; text-shadow: 0 1px 6px #000; background:       rgba(0,0,0,0.5); display: inline-block; padding: 4px 14px; border-radius: 14px;       margin-top: 8px; }
-        #status-msg { background: rgba(0, 122, 255, 0.95); padding: 12px;       border-radius: 10px; font-size: 14px; margin-top: 10px; display: none;       pointer-events: auto; text-align: center; }
+        select, input { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #222; color: #fff; font-size: 16px; box-sizing: border-box; }
+        #start-btn { width: 100%; padding: 16px; background: #007AFF; color: white; border: none; border-radius: 10px; font-weight: bold; font-size: 18px; margin-top: 5px; box-shadow: 0 4px 12px rgba(0,122,255,0.4); }
+        
+        /* ガイド矢印 */
+        .guide-arrow { position: fixed; top: 50%; width: 70px; height: 70px; z-index: 15; transform: translateY(-50%); display: none; filter: drop-shadow(0 0 15px rgba(0,122,255,1.0)); pointer-events: none; stroke: #007AFF; }
+        #guide-left { left: 15px; }
+        #guide-right { right: 15px; transform: translateY(-50%) rotate(180deg); }
+        
+        #ar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; }
+        #target-dot { position: absolute; width: 50px; height: 50px; background: radial-gradient(circle, #ff2d55 0%, #ff3b30 100%); border: 3px solid white; border-radius: 50%; transform: translate(-50%, -50%); display: none; box-shadow: 0 0 30px rgba(255, 59, 48, 1.0); }
+        
+        #distance-info { position: fixed; top: 60px; left: 0; width: 100%; text-align: center; color: white; z-index: 10; pointer-events: none; }
+        .dist-text { font-size: 42px; font-weight: bold; text-shadow: 0 2px 15px #000; }
+        .alt-text { font-size: 20px; text-shadow: 0 1px 8px #000; background: rgba(0,0,0,0.6); display: inline-block; padding: 5px 16px; border-radius: 15px; margin-top: 10px; font-weight: bold; }
+        #status-msg { background: rgba(0, 122, 255, 0.95); padding: 12px; border-radius: 10px; font-size: 14px; margin-top: 10px; display: none; pointer-events: auto; text-align: center; }
     </style>
 </head>
 <body>
 
 <video id="camera-view" autoplay playsinline muted></video>
+
+<!-- 左右ガイド矢印 (SVG) -->
+<svg id="guide-left" class="guide-arrow" viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+<svg id="guide-right" class="guide-arrow" viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
 
 <div id="ar-overlay"><div id="target-dot"></div></div>
 
@@ -38,7 +52,7 @@
 <div id="ui-layer">
     <div id="input-ui" class="input-form">
         <div class="form-header">
-            <span style="font-weight: bold; font-size: 15px;">📍 測量座標ナビ</span>
+            <span style="font-weight: bold; font-size: 16px;">📍 測量ナビ Pro (高精度)</span>
             <button class="toggle-btn" id="toggle-ui">閉じる</button>
         </div>
         <div id="form-content">
@@ -48,16 +62,16 @@
                     <script>
                         for(let i=1; i<=19; i++) {
                             const selected = (i === 15) ? 'selected' : '';
-                            document.write(`<option value="${i}"       ${selected}>${i}系</option>`);
+                            document.write(`<option value="${i}" ${selected}>${i}系</option>`);
                         }
                     </script>
                 </select>
             </div>
             <div style="display: flex; gap: 10px;">
-                <div class="input-group" style="flex:1;"><label>X座標       (北正)</label><input type="number" id="target-x" placeholder="0.000"       step="0.001"></div>
-                <div class="input-group" style="flex:1;"><label>Y座標       (東正)</label><input type="number" id="target-y" placeholder="0.000"       step="0.001"></div>
+                <div class="input-group" style="flex:1;"><label>X座標 (北正)</label><input type="number" id="target-x" placeholder="0.000" step="0.001"></div>
+                <div class="input-group" style="flex:1;"><label>Y座標 (東正)</label><input type="number" id="target-y" placeholder="0.000" step="0.001"></div>
             </div>
-            <div class="input-group"><label>標高 Z (m)</label><input type="number"       id="target-z" value="0" step="0.001"></div>
+            <div class="input-group"><label>標高 Z (m)</label><input type="number" id="target-z" value="0" step="0.001"></div>
             <button id="start-btn">ナビゲーション開始</button>
         </div>
         <div id="status-msg"></div>
@@ -71,105 +85,176 @@
     const inputUi = document.getElementById('input-ui');
     const formContent = document.getElementById('form-content');
     const targetDot = document.getElementById('target-dot');
+    const guideLeft = document.getElementById('guide-left');
+    const guideRight = document.getElementById('guide-right');
     const distVal = document.getElementById('dist-val');
     const altVal = document.getElementById('alt-val');
     const statusMsg = document.getElementById('status-msg');
 
-    let state = { currentPos: null, targetLatLng: null, targetZ: 0, heading: 0,       pitch: 0, active: false };
+    let state = { currentPos: null, targetLatLng: null, targetZ: 0, heading: 0, pitch: 0, active: false };
 
     function showToast(msg, isError = false) {
         statusMsg.innerText = msg;
-        statusMsg.style.background = isError ? "rgba(255, 45, 85, 0.95)" : "rgba(0,       122, 255, 0.95)";
+        statusMsg.style.background = isError ? "rgba(255, 45, 85, 0.95)" : "rgba(0, 122, 255, 0.95)";
         statusMsg.style.display = 'block';
-        setTimeout(() => { statusMsg.style.display = 'none'; }, 2500);
+        setTimeout(() => { statusMsg.style.display = 'none'; }, 3000);
     }
 
     toggleBtn.addEventListener('click', () => {
         const isCollapsed = inputUi.classList.toggle('collapsed');
-        toggleBtn.innerText = isCollapsed ? '開く' : '閉じる';
+        toggleBtn.innerText = isCollapsed ? '入力' : '閉じる';
         formContent.style.display = isCollapsed ? 'none' : 'block';
     });
 
+    /**
+     * 日本の平面直角座標 (X, Y) を緯度経度に変換
+     * 国土地理院 測量計算式 (ガウス・クリューゲル投影 逆計算)
+     * 高精度多項式展開版 (GRS80楕円体準拠)
+     */
     function jprToLatLng(x, y, system) {
-        const origins = [[33, 129.5], [33, 131], [36, 132.166666666], [33, 133.5],       [36, 134.333333333], [36, 136], [36, 137.166666666], [36, 138.5], [36,       139.833333333], [40, 140.833333333], [44, 140.25], [44, 142.25], [44, 144.25], [26,       142], [26, 127.5], [26, 124], [26, 131], [20, 136], [26, 154]];
+        const origins = [
+            [33, 129.5], [33, 131], [36, 132.166666666], [33, 133.5], [36, 134.333333333], [36, 136], [36, 137.166666666], [36, 138.5],
+            [36, 139.833333333], [40, 140.833333333], [44, 140.25], [44, 142.25], [44, 144.25], [26, 142], [26, 127.5], [26, 124],
+            [26, 131], [20, 136], [26, 154]
+        ];
         const org = origins[system - 1];
         const phi0 = org[0] * Math.PI / 180, lam0 = org[1] * Math.PI / 180;
-        const m0 = 0.9999, a = 6378137, f = 1 / 298.257222101;
-        const n = f / (2 - f), ap = (a/(1+n)) * (1 + (n*n/4) + (n*n*n*n/64));
-        const alpha = [null, (3/2)*n - n*n + (7/8)*n*n*n, (15/16)*n*n -       (15/16)*n*n*n, (35/48)*n*n*n];
-        let s0 = phi0; for(let j=1; j<=3; j++) s0 += alpha[j] * Math.sin(2 * j *       phi0); s0 *= ap;
-        const st = x + s0;
-        const xi = st/ap, et = y/(m0*ap);
-        const beta = [null, (1/2)*n - (2/3)*n*n + (37/96)*n*n*n, (1/48)*n*n +       (1/15)*n*n*n, (17/480)*n*n*n];
-        let xip = xi, etp = et; for(let j=1; j<=3; j++){ xip -= beta[j] *       Math.sin(2*j*xi) * Math.cosh(2*j*et); etp -= beta[j] * Math.cos(2*j*xi) *       Math.sinh(2*j*et); }
-        const chi = Math.asin(Math.sin(xip) / Math.cosh(etp));
-        const delta = [null, 2*n - (2/3)*n*n - 2*n*n*n, (7/3)*n*n - (8/5)*n*n*n,       (56/15)*n*n*n];
-        let phi = chi; for(let j=1; j<=3; j++) phi += delta[j] * Math.sin(2 * j *       chi);
-        return { lat: phi * 180 / Math.PI, lng: (lam0 + Math.atan(Math.sinh(etp) /       Math.cos(xip))) * 180 / Math.PI };
+        
+        const a = 6378137.0;
+        const f = 1 / 298.257222101;
+        const m0 = 0.9999;
+        
+        const n = f / (2 - f);
+        const ap = (a / (1 + n)) * (1 + Math.pow(n, 2) / 4 + Math.pow(n, 4) / 64);
+        
+        const alpha = [null, 
+            (3/2)*n - Math.pow(n,2) + (7/8)*Math.pow(n,3) - (11/64)*Math.pow(n,4),
+            (15/16)*Math.pow(n,2) - (15/16)*Math.pow(n,3) + (71/128)*Math.pow(n,4),
+            (35/48)*Math.pow(n,3) - (35/48)*Math.pow(n,4),
+            (315/512)*Math.pow(n,4)
+        ];
+        
+        const beta = [null,
+            (1/2)*n - (2/3)*Math.pow(n,2) + (37/96)*Math.pow(n,3) - (1/360)*Math.pow(n,4),
+            (1/48)*Math.pow(n,2) + (1/15)*Math.pow(n,3) - (437/1440)*Math.pow(n,4),
+            (17/480)*Math.pow(n,3) - (37/840)*Math.pow(n,4),
+            (4397/161280) * Math.pow(n,4)
+        ];
+        
+        const delta = [null,
+            2 * n - (2/3) * Math.pow(n,2) - 2 * Math.pow(n,3) + (116 / 45) * Math.pow(n,4),
+            (7/3) * Math.pow(n,2) - (8/5) * Math.pow(n,3) - (227 / 45) * Math.pow(n,4),
+            (56/15) * Math.pow(n,3) - (136 / 35) * Math.pow(n,4),
+            (4271/315) * Math.pow(n,4)
+        ];
+
+        let s_phi0 = phi0;
+        for (let j = 1; j <= 4; j++) s_phi0 += alpha[j] * Math.sin(2 * j * phi0);
+        s_phi0 *= ap;
+
+        const st = x + s_phi0;
+        const xi = st / ap, et = y / (m0 * ap);
+        
+        let xi_p = xi, et_p = et;
+        for (let j = 1; j <= 4; j++) {
+            xi_p -= beta[j] * Math.sin(2 * j * xi) * Math.cosh(2 * j * eta);
+            et_p -= beta[j] * Math.cos(2 * j * xi) * Math.sinh(2 * j * eta);
+        }
+        
+        const chi = Math.asin(Math.sin(xi_p) / Math.cosh(et_p));
+        let phi = chi;
+        for (let j = 1; j <= 4; j++) phi += delta[j] * Math.sin(2 * j * chi);
+        const lam = lam0 + Math.atan(Math.sinh(et_p) / Math.cos(xi_p));
+        
+        return { lat: phi * 180 / Math.PI, lng: lam * 180 / Math.PI };
     }
 
     startBtn.addEventListener('click', async () => {
         try {
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof       DeviceOrientationEvent.requestPermission === 'function') {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 const res = await DeviceOrientationEvent.requestPermission();
-                if (res !== 'granted') throw new       Error("方位センサーの許可が必要です。");
+                if (res !== 'granted') throw new Error("方位センサーの許可が必要です。Safariの設定を確認してください。");
             }
             const x = parseFloat(document.getElementById('target-x').value);
             const y = parseFloat(document.getElementById('target-y').value);
             const z = parseFloat(document.getElementById('target-z').value) || 0;
             const sys = parseInt(document.getElementById('coord-system').value);
-            if (isNaN(x) || isNaN(y)) throw new Error("座標を入力してください。");
+            if (isNaN(x) || isNaN(y)) throw new Error("有効な座標を入力してください。");
 
             state.targetLatLng = jprToLatLng(x, y, sys);
             state.targetZ = z;
 
             if (!state.active) {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: {       facingMode: 'environment' } });
-                video.srcObject = stream; video.play();
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = stream;
+                video.play();
+
                 navigator.geolocation.watchPosition(p => {
-                    state.currentPos = { lat: p.coords.latitude, lng:       p.coords.longitude, alt: p.coords.altitude || 0 };
+                    state.currentPos = { lat: p.coords.latitude, lng: p.coords.longitude, alt: p.coords.altitude || 0 };
                     update();
-                }, e => showToast("GPSエラー: " + e.message, true), {       enableHighAccuracy: true });
+                }, e => showToast("GPSエラー: " + e.message, true), { enableHighAccuracy: true });
+
                 window.addEventListener('deviceorientation', e => {
                     state.heading = e.webkitCompassHeading || (360 - e.alpha);
                     state.pitch = e.beta;
                     update();
                 }, true);
+
                 state.active = true;
-                startBtn.innerText = "座標を更新";
-                setTimeout(() => { if(!inputUi.classList.contains('collapsed'))       toggleBtn.click(); }, 1000);
+                startBtn.innerText = "目的地を更新";
+                setTimeout(() => { if(!inputUi.classList.contains('collapsed')) toggleBtn.click(); }, 1000);
             } else {
                 showToast("目的地を更新しました");
-                setTimeout(() => { if(!inputUi.classList.contains('collapsed'))       toggleBtn.click(); }, 800);
+                setTimeout(() => { if(!inputUi.classList.contains('collapsed')) toggleBtn.click(); }, 800);
             }
-        } catch (err) { showToast(err.message, true); }
+        } catch (err) {
+            showToast(err.message, true);
+        }
     });
 
     function update() {
         if (!state.active || !state.currentPos || !state.targetLatLng) return;
+        
         const p1 = state.currentPos, p2 = state.targetLatLng;
         const R = 6371000;
-        const dLat = (p2.lat - p1.lat) * Math.PI / 180, dLon = (p2.lng - p1.lng) *       Math.PI / 180;
-        const a = Math.sin(dLat/2)**2 + Math.cos(p1.lat*Math.PI/180) *       Math.cos(p2.lat*Math.PI/180) * Math.sin(dLon/2)**2;
+        const dLat = (p2.lat - p1.lat) * Math.PI / 180, dLon = (p2.lng - p1.lng) * Math.PI / 180;
+        const a = Math.pow(Math.sin(dLat/2), 2) + Math.cos(p1.lat*Math.PI/180) * Math.cos(p2.lat*Math.PI/180) * Math.pow(Math.sin(dLon/2), 2);
         const distH = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distV = state.targetZ - p1.alt;
-        const distTotal = Math.sqrt(distH**2 + distV**2);
+        const distTotal = Math.sqrt(Math.pow(distH, 2) + Math.pow(distV, 2));
+        
         distVal.innerText = `目標まで約${distTotal.toFixed(2)}m`;
         altVal.innerText = `高低差: ${distV > 0 ? '+' : ''}${distV.toFixed(2)}m`;
 
-        const y1 = p1.lat * Math.PI / 180, y2 = p2.lat * Math.PI / 180, dL = (p2.lng       - p1.lng) * Math.PI / 180;
-        const brng = (Math.atan2(Math.sin(dL)*Math.cos(y2),       Math.cos(y1)*Math.sin(y2)-Math.sin(y1)*Math.cos(y2)*Math.cos(dL)) * 180 / Math.PI +       360) % 360;
-        let diffH = brng - state.heading; if (diffH > 180) diffH -= 360; if (diffH <       -180) diffH += 360;
-        const pitchRad = Math.atan2(distV, distH) * 180 / Math.PI;
-        let diffV = pitchRad - (state.pitch - 90);
-        const fovH = 60, fovV = 80;
-        if (Math.abs(diffH) < fovH/2 && Math.abs(diffV) < fovV/2) {
-            targetDot.style.left = `${(50 + (diffH / fovH) * 100)}%`;
-            targetDot.style.top = `${(50 - (diffV / fovV) * 100)}%`;
+        const y1 = p1.lat * Math.PI / 180, y2 = p2.lat * Math.PI / 180, dL = (p2.lng - p1.lng) * Math.PI / 180;
+        const brng = (Math.atan2(Math.sin(dL)*Math.cos(y2), Math.cos(y1)*Math.sin(y2)-Math.sin(y1)*Math.cos(y2)*Math.cos(dL)) * 180 / Math.PI + 360) % 360;
+        
+        let diffH = brng - state.heading; 
+        if (diffH > 180) diffH -= 360; if (diffH < -180) diffH += 360;
+        
+        const fovH = 60;
+        
+        // ガイド矢印の制御
+        if (diffH < -fovH/2) {
+            guideLeft.style.display = 'block'; guideRight.style.display = 'none';
+        } else if (diffH > fovH/2) {
+            guideLeft.style.display = 'none'; guideRight.style.display = 'block';
+        } else {
+            guideLeft.style.display = 'none'; guideRight.style.display = 'none';
+        }
+
+        // ドットの描画
+        if (Math.abs(diffH) < fovH/2) {
+            const xPos = (50 + (diffH / fovH) * 100);
+            targetDot.style.left = `${xPos}%`;
+            targetDot.style.top = `50%`;
             targetDot.style.display = 'block';
-            const size = Math.max(15, Math.min(130, 1800 / (Math.sqrt(distTotal) +       1)));
-            targetDot.style.width = targetDot.style.height = `${size}px`;
-        } else { targetDot.style.display = 'none'; }
+            const size = Math.max(20, Math.min(160, 2500 / (Math.sqrt(distTotal) + 1)));
+            targetDot.style.width = `${size}px`;
+            targetDot.style.height = `${size}px`;
+        } else {
+            targetDot.style.display = 'none';
+        }
     }
 </script>
 </body>
