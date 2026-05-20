@@ -4,40 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0,
 maximum-scale=1.0, user-scalable=no">
-    <title>AR座標ナビ Pro</title>
+    <title>ARナビ Pro (ボトムUI版)</title>
     <style>
-        body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            overflow: hidden; background-color: #000;
-            font-family: -apple-system, sans-serif;
-        }
-        #camera-view {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: cover; z-index: 1;
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow:
+hidden; background-color: #000; font-family: -apple-system, sans-serif; }
+        #camera-view { position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+object-fit: cover; z-index: 1; }
+
+        /* UIレイヤーを画面下部に固定 */
         #ui-layer {
-            position: relative; z-index: 10; color: white; padding: 20px;
-            pointer-events: none;
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            z-index: 10; color: white; padding: 20px;
+            pointer-events: none; box-sizing: border-box;
         }
+
         .input-form {
-            background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 12px;
+            background: rgba(0, 0, 0, 0.85); padding: 15px; border-radius: 16px;
             pointer-events: auto; border: 1px solid rgba(255, 255, 255, 0.3);
+            margin-bottom: env(safe-area-inset-bottom); /* iPhoneのホームバー回避 */
         }
+
         .input-group { margin-bottom: 10px; }
         label { display: block; font-size: 11px; margin-bottom: 3px; color: #aaa; }
-        select, input {
-            width: 100%; padding: 10px; border-radius: 6px; border: none;
-            background: #222; color: #fff; font-size: 16px; box-sizing: border-box;
-        }
+        select, input { width: 100%; padding: 12px; border-radius: 8px; border:
+none; background: #222; color: #fff; font-size: 16px; box-sizing: border-box; }
+
         #start-btn {
-            width: 100%; padding: 15px; background: #007AFF; color: white;
-            border: none; border-radius: 8px; font-weight: bold; font-size: 18px;
-            margin-top: 10px;
+            width: 100%; padding: 16px; background: #007AFF; color: white;
+            border: none; border-radius: 10px; font-weight: bold; font-size: 18px;
+            margin-top: 5px; box-shadow: 0 4px 12px rgba(0,122,255,0.4);
         }
-        #ar-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 5; pointer-events: none;
-        }
+
+        #ar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+z-index: 5; pointer-events: none; }
         #target-dot {
             position: absolute; width: 40px; height: 40px;
             background: radial-gradient(circle, #ff2d55 0%, #ff3b30 100%);
@@ -45,18 +44,19 @@ maximum-scale=1.0, user-scalable=no">
             transform: translate(-50%, -50%); display: none;
             box-shadow: 0 0 20px rgba(255, 59, 48, 0.8);
         }
+
         #distance-info {
-            position: fixed; bottom: 40px; left: 0; width: 100%;
-            text-align: center; color: white; z-index: 10;
+            position: fixed; top: 60px; left: 0; width: 100%;
+            text-align: center; color: white; z-index: 10; pointer-events: none;
         }
-        .dist-text { font-size: 32px; font-weight: bold; text-shadow: 0 2px 8px
+        .dist-text { font-size: 36px; font-weight: bold; text-shadow: 0 2px 10px
 #000; }
-        .alt-text { font-size: 16px; text-shadow: 0 1px 4px #000; }
-        #status-msg {
-            background: rgba(255, 0, 0, 0.6); padding: 8px; border-radius: 6px;
-            font-size: 12px; margin-top: 10px; display: none;
-            pointer-events: auto;
-        }
+        .alt-text { font-size: 18px; text-shadow: 0 1px 5px #000; background:
+rgba(0,0,0,0.3); display: inline-block; padding: 2px 10px; border-radius: 10px; }
+
+        #status-msg { background: rgba(255, 45, 85, 0.9); padding: 12px;
+border-radius: 8px; font-size: 14px; margin-top: 10px; display: none;
+pointer-events: auto; }
     </style>
 </head>
 <body>
@@ -65,6 +65,14 @@ maximum-scale=1.0, user-scalable=no">
 
 <div id="ar-overlay">
     <div id="target-dot"></div>
+</div>
+
+<!--
+距離情報は視認性を高めるため上部に移動、または下部のフォームが消えた後に中央付近に表
+示 -->
+<div id="distance-info">
+    <div class="dist-text" id="dist-val"></div>
+    <div class="alt-text" id="alt-val"></div>
 </div>
 
 <div id="ui-layer">
@@ -92,17 +100,12 @@ ${selected}>${i}系</option>`);
             </div>
         </div>
         <div class="input-group">
-            <label>標高 Z (m)</label>
-            <input type="number" id="target-z" placeholder="0.00" step="0.001">
+            <label>標高 Z (m) ※任意</label>
+            <input type="number" id="target-z" value="0" step="0.001">
         </div>
         <button id="start-btn">ナビゲーション開始</button>
         <div id="status-msg"></div>
     </div>
-</div>
-
-<div id="distance-info">
-    <div class="dist-text" id="dist-val"></div>
-    <div class="alt-text" id="alt-val"></div>
 </div>
 
 <script>
@@ -113,14 +116,8 @@ ${selected}>${i}系</option>`);
     const altVal = document.getElementById('alt-val');
     const statusMsg = document.getElementById('status-msg');
 
-    let state = {
-        currentPos: null,
-        targetLatLng: null,
-        targetZ: 0,
-        heading: 0,
-        pitch: 0,
-        active: false
-    };
+    let state = { currentPos: null, targetLatLng: null, targetZ: 0, heading: 0,
+pitch: 0, active: false };
 
     function showError(msg) {
         statusMsg.innerText = msg;
@@ -129,10 +126,10 @@ ${selected}>${i}系</option>`);
 
     function jprToLatLng(x, y, system) {
         const origins = [
-            [33, 129.5], [33, 131], [36, 132.166666666], [33, 133.5],
-            [36, 134.333333333], [36, 136], [36, 137.166666666], [36, 138.5],
+            [33, 129.5], [33, 131], [36, 132.166666666], [33, 133.5], [36,
+134.333333333], [36, 136], [36, 137.166666666], [36, 138.5],
             [36, 139.833333333], [40, 140.833333333], [44, 140.25], [44, 142.25],
-            [44, 144.25], [26, 142], [26, 127.5], [26, 124],
+[44, 144.25], [26, 142], [26, 127.5], [26, 124],
             [26, 131], [20, 136], [26, 154]
         ];
         const org = origins[system - 1];
@@ -158,38 +155,31 @@ ${selected}>${i}系</option>`);
 Math.cos(xi))) * 180 / Math.PI };
     }
 
-    async function startApp() {
+    startBtn.addEventListener('click', async () => {
         statusMsg.style.display = 'none';
         try {
+            // iOS許可
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof
+DeviceOrientationEvent.requestPermission === 'function') {
+                const res = await DeviceOrientationEvent.requestPermission();
+                if (res !== 'granted') throw new
+Error("センサーの許可が必要です。");
+            }
+
             const x = parseFloat(document.getElementById('target-x').value);
             const y = parseFloat(document.getElementById('target-y').value);
             const z = parseFloat(document.getElementById('target-z').value) || 0;
             const sys = parseInt(document.getElementById('coord-system').value);
-
-            if (isNaN(x) || isNaN(y)) throw new Error("座標を入力してください");
+            if (isNaN(x) || isNaN(y)) throw new
+Error("座標を正しく入力してください。");
 
             state.targetLatLng = jprToLatLng(x, y, sys);
             state.targetZ = z;
 
-            // 1. 位置情報
-            const posPromise = new Promise((res, rej) => {
-                navigator.geolocation.getCurrentPosition(res, rej, {
-enableHighAccuracy: true });
-            });
-            await posPromise;
-
-            // 2. カメラ (iOSでの反応を確実にするため)
             const stream = await navigator.mediaDevices.getUserMedia({ video: {
 facingMode: 'environment' } });
             video.srcObject = stream;
             video.onloadedmetadata = () => video.play();
-
-            // 3. iOS センサー
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof
-DeviceOrientationEvent.requestPermission === 'function') {
-                const res = await DeviceOrientationEvent.requestPermission();
-                if (res !== 'granted') throw new Error("センサー許可が必要です");
-            }
 
             navigator.geolocation.watchPosition(p => {
                 state.currentPos = { lat: p.coords.latitude, lng:
@@ -202,18 +192,17 @@ p.coords.longitude, alt: p.coords.altitude || 0 };
                 state.heading = e.webkitCompassHeading || (360 - e.alpha);
                 state.pitch = e.beta;
                 update();
-            });
+            }, true);
 
             document.getElementById('input-ui').style.display = 'none';
             state.active = true;
         } catch (err) {
             showError(err.message);
         }
-    }
+    });
 
     function update() {
         if (!state.active || !state.currentPos) return;
-
         const p1 = state.currentPos, p2 = state.targetLatLng;
         const R = 6371000;
         const dLat = (p2.lat - p1.lat) * Math.PI / 180;
@@ -235,7 +224,6 @@ Math.cos(y1)*Math.sin(y2)-Math.sin(y1)*Math.cos(y2)*Math.cos(dL)) * 180 / Math.P
 
         let diffH = brng - state.heading;
         if (diffH > 180) diffH -= 360; if (diffH < -180) diffH += 360;
-
         const pitchRad = Math.atan2(distV, distH) * 180 / Math.PI;
         let diffV = pitchRad - (state.pitch - 90);
 
@@ -244,15 +232,13 @@ Math.cos(y1)*Math.sin(y2)-Math.sin(y1)*Math.cos(y2)*Math.cos(dL)) * 180 / Math.P
             targetDot.style.left = `${(50 + (diffH / fovH) * 100)}%`;
             targetDot.style.top = `${(50 - (diffV / fovV) * 100)}%`;
             targetDot.style.display = 'block';
-            const size = Math.max(15, Math.min(100, 1000 / (Math.sqrt(distTotal) +
+            const size = Math.max(15, Math.min(120, 1500 / (Math.sqrt(distTotal) +
 1)));
             targetDot.style.width = targetDot.style.height = `${size}px`;
         } else {
             targetDot.style.display = 'none';
         }
     }
-
-    startBtn.addEventListener('click', startApp);
 </script>
 </body>
 </html>
