@@ -35,26 +35,27 @@
         .target-dot { position: absolute; width: 55px; height: 55px; border: 3px solid white; border-radius: 50%; transform: translate(-50%, -50%); display: none; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
         .target-label { position: absolute; top: -25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; white-space: nowrap; font-weight: bold; }
 
-        #distance-info { position: fixed; top: 60px; left: 0; width: 100%; text-align: center; color: white; z-index: 10; pointer-events: none; }
+        #distance-info { position: fixed; top: 80px; left: 0; width: 100%; text-align: center; color: white; z-index: 10; pointer-events: none; }
         .dist-text { font-size: 36px; font-weight: bold; text-shadow: 0 2px 15px #000; }
         .alt-text { font-size: 18px; text-shadow: 0 1px 8px #000; background: rgba(0,0,0,0.6); display: inline-block; padding: 4px 12px; border-radius: 12px; margin-top: 5px; font-weight: bold; }
         
-        #current-loc-display { position: fixed; top: 10px; left: 0; width: 100%; text-align: center; color: rgba(255,255,255,0.9); font-size: 11px; z-index: 20; pointer-events: none; text-shadow: 0 1px 3px #000; font-family: monospace; background: rgba(0,0,0,0.3); padding: 5px 0; }
+        #current-loc-display { position: fixed; top: 10px; left: 0; width: 100%; text-align: center; color: #00ff00; font-size: 10px; z-index: 20; pointer-events: none; text-shadow: 0 1px 3px #000; font-family: monospace; background: rgba(0,0,0,0.6); padding: 8px 0; line-height: 1.5; }
         
         #status-msg { background: rgba(0, 122, 255, 0.95); padding: 12px; border-radius: 10px; font-size: 14px; margin-top: 10px; display: none; pointer-events: auto; text-align: center; }
     </style>
 </head>
 <body>
 
-<div id="current-loc-display">現在地座標(世界測地系): 取得中...</div>
+<div id="current-loc-display">
+    <div id="curr-latlng">緯度経度: 取得中...</div>
+    <div id="curr-jpr">平面直角: 取得中...</div>
+</div>
 <video id="camera-view" autoplay playsinline muted></video>
 
 <svg id="guide-left" class="guide-arrow" viewBox="0 0 24 24" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
 <svg id="guide-right" class="guide-arrow" viewBox="0 0 24 24" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
 
-<div id="ar-overlay">
-    <!-- ドットはJavaScriptで生成 -->
-</div>
+<div id="ar-overlay"></div>
 
 <div id="distance-info">
     <div class="dist-text" id="dist-val">--.--m</div>
@@ -64,15 +65,15 @@
 <div id="ui-layer">
     <div id="input-ui" class="input-form">
         <div class="form-header">
-            <span style="font-weight: bold; font-size: 16px;">📍 測量ナビ Pro (修正版)</span>
+            <span style="font-weight: bold; font-size: 16px;">📍 測量ナビ Pro (JGD2011対応版)</span>
             <button class="toggle-btn" id="toggle-ui">閉じる</button>
         </div>
         <div id="form-content">
             <div class="point-selector" id="point-tabs"></div>
             
             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                <div class="input-group" style="flex:1;"><label>X座標 (北正)</label><input type="number" id="target-x" placeholder="0.000" step="0.001"></div>
-                <div class="input-group" style="flex:1;"><label>Y座標 (東正)</label><input type="number" id="target-y" placeholder="0.000" step="0.001"></div>
+                <div class="input-group" style="flex:1;"><label>X座標 (北正) [m]</label><input type="number" id="target-x" placeholder="0.000" step="0.001"></div>
+                <div class="input-group" style="flex:1;"><label>Y座標 (東正) [m]</label><input type="number" id="target-y" placeholder="0.000" step="0.001"></div>
             </div>
             
             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
@@ -113,42 +114,28 @@
     const distVal = document.getElementById('dist-val');
     const altVal = document.getElementById('alt-val');
     const statusMsg = document.getElementById('status-msg');
-    const locDisplay = document.getElementById('current-loc-display');
+    const currLatLngDisp = document.getElementById('curr-latlng');
+    const currJPRDisp = document.getElementById('curr-jpr');
 
     const COLORS = ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#007aff'];
-    
-    // localStorageから復元
-    const savedData = JSON.parse(localStorage.getItem('ar_nav_points')) || [];
-    
-    let state = { 
-        currentPos: null, 
-        currentJPR: null,
-        targets: Array(5).fill(null).map((_, i) => {
-            const saved = savedData[i] || {};
-            return { 
-                id: i, 
-                x: saved.x || null, 
-                y: saved.y || null, 
-                z: saved.z || 0, 
-                sys: saved.sys || 15, 
-                name: saved.name || `点${i+1}`,
-                latlng: saved.latlng || null, 
-                color: COLORS[i] 
-            };
-        }),
-        activeIdx: 0,
-        heading: 0, 
-        pitch: 0, 
-        active: false 
-    };
-
     const ORIGINS = [
         [33, 129.5], [33, 131], [36, 132.166666666], [33, 133.5], [36, 134.333333333], [36, 136], [36, 137.166666666], [36, 138.5],
         [36, 139.833333333], [40, 140.833333333], [44, 140.25], [44, 142.25], [44, 144.25], [26, 142], [26, 127.5], [26, 124],
         [26, 131], [20, 136], [26, 154]
     ];
 
-    // 初期化: タブとドットの生成
+    const savedData = JSON.parse(localStorage.getItem('ar_nav_points')) || [];
+    let state = { 
+        currentPos: null, 
+        currentJPR: null,
+        targets: Array(5).fill(null).map((_, i) => {
+            const saved = savedData[i] || {};
+            return { id: i, x: saved.x, y: saved.y, z: saved.z || 0, sys: saved.sys || 15, name: saved.name || `点${i+1}`, color: COLORS[i] };
+        }),
+        activeIdx: 0,
+        heading: 0, pitch: 0, active: false 
+    };
+
     state.targets.forEach((t, i) => {
         const tab = document.createElement('div');
         tab.className = `point-tab ${i === 0 ? 'active' : ''}`;
@@ -172,8 +159,8 @@
         state.activeIdx = idx;
         document.querySelectorAll('.point-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
         const t = state.targets[idx];
-        document.getElementById('target-x').value = t.x || '';
-        document.getElementById('target-y').value = t.y || '';
+        document.getElementById('target-x').value = t.x !== null ? t.x : '';
+        document.getElementById('target-y').value = t.y !== null ? t.y : '';
         document.getElementById('target-z').value = t.z || 0;
         document.getElementById('coord-system').value = t.sys || 15;
         document.getElementById('target-name').value = t.name || `点${idx+1}`;
@@ -192,10 +179,8 @@
         formContent.style.display = isCollapsed ? 'none' : 'block';
     });
 
-    /**
-     * 高精度ガウス・クリューゲル変換 (JPR <-> LatLng)
-     */
-    function getGKConstants(phi0, lam0) {
+    function getGKConstants(phi0_deg, lam0_deg) {
+        const phi0 = phi0_deg * Math.PI / 180, lam0 = lam0_deg * Math.PI / 180;
         const a = 6378137.0, f = 1 / 298.257222101, m0 = 0.9999;
         const n = f / (2 - f);
         const ap = (a / (1 + n)) * (1 + Math.pow(n, 2) / 4 + Math.pow(n, 4) / 64);
@@ -205,43 +190,12 @@
             (35/48)*Math.pow(n,3) - (35/48)*Math.pow(n,4),
             (315/512)*Math.pow(n,4)
         ];
-        const beta = [null,
-            (1/2)*n - (2/3)*Math.pow(n,2) + (37/96)*Math.pow(n,3) - (1/360)*Math.pow(n,4),
-            (1/48)*Math.pow(n,2) + (1/15)*Math.pow(n,3) - (437/1440)*Math.pow(n,4),
-            (17/480)*Math.pow(n,3) - (37/840)*Math.pow(n,4),
-            (4397/161280) * Math.pow(n,4)
-        ];
-        const delta = [null,
-            2 * n - (2/3) * Math.pow(n,2) - 2 * Math.pow(n,3) + (116 / 45) * Math.pow(n,4),
-            (7/3) * Math.pow(n,2) - (8/5) * Math.pow(n,3) - (227 / 45) * Math.pow(n,4),
-            (56/15) * Math.pow(n,3) - (136 / 35) * Math.pow(n,4),
-            (4271/315) * Math.pow(n,4)
-        ];
-        return { a, f, m0, n, ap, alpha, beta, delta, phi0, lam0 };
-    }
-
-    function jprToLatLng(x, y, system) {
-        const org = ORIGINS[system - 1];
-        const c = getGKConstants(org[0] * Math.PI / 180, org[1] * Math.PI / 180);
-        let s_phi0 = c.phi0;
-        for (let j = 1; j <= 4; j++) s_phi0 += c.alpha[j] * Math.sin(2 * j * c.phi0);
-        s_phi0 *= c.ap;
-        const xi = (x + s_phi0) / (c.m0 * c.ap), et = y / (c.m0 * c.ap);
-        let xi_p = xi, et_p = et;
-        for (let j = 1; j <= 4; j++) {
-            xi_p -= c.beta[j] * Math.sin(2 * j * xi) * Math.cosh(2 * j * et);
-            et_p -= c.beta[j] * Math.cos(2 * j * xi) * Math.sinh(2 * j * et);
-        }
-        const chi = Math.asin(Math.sin(xi_p) / Math.cosh(et_p));
-        let phi = chi;
-        for (let j = 1; j <= 4; j++) phi += c.delta[j] * Math.sin(2 * j * chi);
-        const lam = c.lam0 + Math.atan(Math.sinh(et_p) / Math.cos(xi_p));
-        return { lat: phi * 180 / Math.PI, lng: lam * 180 / Math.PI };
+        return { a, f, m0, n, ap, alpha, phi0, lam0 };
     }
 
     function latLngToJpr(lat, lng, system) {
         const org = ORIGINS[system - 1];
-        const c = getGKConstants(org[0] * Math.PI / 180, org[1] * Math.PI / 180);
+        const c = getGKConstants(org[0], org[1]);
         const phi = lat * Math.PI / 180, lam = lng * Math.PI / 180;
         const t = Math.sinh(Math.atanh(Math.sin(phi)) - (2 * Math.sqrt(c.n) / (1 + c.n)) * Math.atanh((2 * Math.sqrt(c.n) / (1 + c.n)) * Math.sin(phi)));
         const xi_p = Math.atan2(t, Math.cos(lam - c.lam0)), et_p = Math.atanh(Math.sin(lam - c.lam0) / Math.sqrt(1 + t * t));
@@ -250,11 +204,11 @@
             xi += c.alpha[j] * Math.sin(2 * j * xi_p) * Math.cosh(2 * j * et_p);
             et += c.alpha[j] * Math.cos(2 * j * xi_p) * Math.sinh(2 * j * et_p);
         }
-        let s_phi0 = c.phi0;
-        for (let j = 1; j <= 4; j++) s_phi0 += c.alpha[j] * Math.sin(2 * j * c.phi0);
-        s_phi0 *= c.ap;
-        const x = c.m0 * c.ap * xi - s_phi0, y = c.m0 * c.ap * et;
-        return { x, y };
+        const t0 = Math.sinh(Math.atanh(Math.sin(c.phi0)) - (2 * Math.sqrt(c.n) / (1 + c.n)) * Math.atanh((2 * Math.sqrt(c.n) / (1 + c.n)) * Math.sin(c.phi0)));
+        const xi_p0 = Math.atan2(t0, 1);
+        let xi0 = xi_p0;
+        for (let j = 1; j <= 4; j++) xi0 += c.alpha[j] * Math.sin(2 * j * xi_p0);
+        return { x: c.m0 * c.ap * (xi - xi0), y: c.m0 * c.ap * et };
     }
 
     saveBtn.addEventListener('click', () => {
@@ -266,7 +220,6 @@
         if (isNaN(x) || isNaN(y)) { showToast("座標を入力してください", true); return; }
         const target = state.targets[state.activeIdx];
         target.x = x; target.y = y; target.z = z; target.sys = sys; target.name = name;
-        target.latlng = jprToLatLng(x, y, sys);
         document.getElementById(`tab-btn-${state.activeIdx}`).innerText = name;
         document.getElementById(`label-${state.activeIdx}`).innerText = name;
         localStorage.setItem('ar_nav_points', JSON.stringify(state.targets));
@@ -284,10 +237,12 @@
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 video.srcObject = stream; video.play();
                 navigator.geolocation.watchPosition(p => {
-                    state.currentPos = { lat: p.coords.latitude, lng: p.coords.longitude, alt: p.coords.altitude || 0 };
+                    const lat = p.coords.latitude, lng = p.coords.longitude;
+                    state.currentPos = { lat, lng, alt: p.coords.altitude || 0 };
                     const sys = parseInt(document.getElementById('coord-system').value);
-                    state.currentJPR = latLngToJpr(p.coords.latitude, p.coords.longitude, sys);
-                    locDisplay.innerText = `現在地座標(${sys}系): X=${state.currentJPR.x.toFixed(3)}, Y=${state.currentJPR.y.toFixed(3)}`;
+                    state.currentJPR = latLngToJpr(lat, lng, sys);
+                    currLatLngDisp.innerText = `現在地(十進法): ${lat.toFixed(7)}, ${lng.toFixed(7)}`;
+                    currJPRDisp.innerText = `平面直角(${sys}系): X=${state.currentJPR.x.toFixed(3)}, Y=${state.currentJPR.y.toFixed(3)}`;
                     update();
                 }, e => showToast("GPSエラー: " + e.message, true), { enableHighAccuracy: true });
                 window.addEventListener('deviceorientation', e => {
@@ -297,8 +252,7 @@
                 state.active = true; startBtn.innerText = "座標を再更新して案内";
                 setTimeout(() => { if(!inputUi.classList.contains('collapsed')) toggleBtn.click(); }, 1000);
             } else {
-                saveBtn.click(); showToast("案内を最新の状態に更新しました");
-                setTimeout(() => { if(!inputUi.classList.contains('collapsed')) toggleBtn.click(); }, 800);
+                saveBtn.click(); showToast("最新の座標で再計算しました");
             }
         } catch (err) { showToast(err.message, true); }
     });
@@ -309,111 +263,31 @@
         state.targets.forEach((t, i) => {
             const dot = document.getElementById(`dot-${i}`);
             if (t.x === null || t.y === null) { dot.style.display = 'none'; return; }
-            
-            // 案内計算を平面直角座標(X, Y)ベースに変更
             const currJPR = latLngToJpr(state.currentPos.lat, state.currentPos.lng, t.sys);
             const dx = t.x - currJPR.x, dy = t.y - currJPR.y;
             const distH = Math.sqrt(dx * dx + dy * dy);
-            const distV = t.z - state.currentPos.alt;
-            const distTotal = Math.sqrt(distH * distH + distV * distV);
-
-            if (distTotal < nearestDist) { nearestDist = distTotal; nearestAlt = distV; }
-
-            // 方位角も平面直角座標系(Grid Bearing)で計算
+            const distTotal = Math.sqrt(distH * distH + Math.pow(t.z - state.currentPos.alt, 2));
+            if (distTotal < nearestDist) { nearestDist = distTotal; nearestAlt = t.z - state.currentPos.alt; }
             const brng = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
             let diffH = brng - state.heading; 
             if (diffH > 180) diffH -= 360; if (diffH < -180) diffH += 360;
-            
-            const fovH = 60;
             if (i === state.activeIdx) {
-                if (diffH < -fovH/2) { guideLeft.style.display = 'block'; guideRight.style.display = 'none'; } 
-                else if (diffH > fovH/2) { guideLeft.style.display = 'none'; guideRight.style.display = 'block'; } 
-                else { guideLeft.style.display = 'none'; guideRight.style.display = 'none'; }
+                if (Math.abs(diffH) > 30) {
+                    if (diffH < 0) { guideLeft.style.display = 'block'; guideRight.style.display = 'none'; }
+                    else { guideLeft.style.display = 'none'; guideRight.style.display = 'block'; }
+                } else { guideLeft.style.display = 'none'; guideRight.style.display = 'none'; }
             }
-
-            if (Math.abs(diffH) < fovH/2) {
-                const xPos = (50 + (diffH / fovH) * 100);
+            if (Math.abs(diffH) < 30) {
+                const xPos = (50 + (diffH / 60) * 100);
                 dot.style.left = `${xPos}%`; dot.style.top = `50%`; dot.style.display = 'block';
                 const size = Math.max(30, Math.min(180, 2500 / (Math.sqrt(distTotal) + 1)));
                 dot.style.width = dot.style.height = `${size}px`;
                 dot.style.zIndex = Math.floor(1000 - distTotal);
             } else { dot.style.display = 'none'; }
         });
-        if (nearestDist !== Infinity) {
-            distVal.innerText = `最寄まで約${nearestDist.toFixed(2)}m`;
-            altVal.innerText = `高低差: ${nearestAlt > 0 ? '+' : ''}${nearestAlt.toFixed(2)}m`;
-        }
+        distVal.innerText = nearestDist === Infinity ? "--.--m" : `最寄まで約${nearestDist.toFixed(2)}m`;
+        altVal.innerText = nearestDist === Infinity ? "高低差: --.--m" : `高低差: ${nearestAlt > 0 ? '+' : ''}${nearestAlt.toFixed(2)}m`;
     }
-</script>
-</body>
-</html>
-
-
-    function update() {
-        if (!state.active || !state.currentPos) return;
-        
-        let nearestDist = Infinity;
-        let nearestAlt = 0;
-
-        state.targets.forEach((t, i) => {
-            const dot = document.getElementById(`dot-${i}`);
-            if (!t.latlng) {
-                dot.style.display = 'none';
-                return;
-            }
-
-            const p1 = state.currentPos, p2 = t.latlng;
-            const R = 6371000;
-            const dLat = (p2.lat - p1.lat) * Math.PI / 180, dLon = (p2.lng - p1.lng) * Math.PI / 180;
-            const a = Math.pow(Math.sin(dLat/2), 2) + Math.cos(p1.lat*Math.PI/180) * Math.cos(p2.lat*Math.PI/180) * Math.pow(Math.sin(dLon/2), 2);
-            const distH = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            const distV = t.z - p1.alt;
-            const distTotal = Math.sqrt(Math.pow(distH, 2) + Math.pow(distV, 2));
-
-            if (distTotal < nearestDist) {
-                nearestDist = distTotal;
-                nearestAlt = distV;
-            }
-
-            const y1 = p1.lat * Math.PI / 180, y2 = p2.lat * Math.PI / 180, dL = (p2.lng - p1.lng) * Math.PI / 180;
-            const brng = (Math.atan2(Math.sin(dL)*Math.cos(y2), Math.cos(y1)*Math.sin(y2)-Math.sin(y1)*Math.cos(y2)*Math.cos(dL)) * 180 / Math.PI + 360) % 360;
-            
-            let diffH = brng - state.heading; 
-            if (diffH > 180) diffH -= 360; if (diffH < -180) diffH += 360;
-            
-            const fovH = 60;
-            if (i === state.activeIdx) {
-                if (diffH < -fovH/2) {
-                    guideLeft.style.display = 'block'; guideRight.style.display = 'none';
-                } else if (diffH > fovH/2) {
-                    guideLeft.style.display = 'none'; guideRight.style.display = 'block';
-                } else {
-                    guideLeft.style.display = 'none'; guideRight.style.display = 'none';
-                }
-            }
-
-            if (Math.abs(diffH) < fovH/2) {
-                const xPos = (50 + (diffH / fovH) * 100);
-                dot.style.left = `${xPos}%`;
-                dot.style.top = `50%`;
-                dot.style.display = 'block';
-                const size = Math.max(30, Math.min(180, 2500 / (Math.sqrt(distTotal) + 1)));
-                dot.style.width = dot.style.height = `${size}px`;
-                dot.style.zIndex = Math.floor(1000 - distTotal); // 近いものを手前に
-            } else {
-                dot.style.display = 'none';
-            }
-        });
-
-        if (nearestDist !== Infinity) {
-            distVal.innerText = `最寄まで約${nearestDist.toFixed(2)}m`;
-            altVal.innerText = `高低差: ${nearestAlt > 0 ? '+' : ''}${nearestAlt.toFixed(2)}m`;
-        }
-    }
-</script>
-</body>
-</html>
-
 </script>
 </body>
 </html>
