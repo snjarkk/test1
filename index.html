@@ -35,9 +35,9 @@
         .target-dot { position: absolute; width: 30px; height: 30px; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); display: none; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
         .target-label { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 1px 6px; border-radius: 8px; font-size: 10px; white-space: nowrap; font-weight: bold; }
         
-        #north-indicator { position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%); color: #ff3b30; font-weight: bold; font-size: 24px; text-shadow: 0 0 10px #000, 0 0 5px #fff; display: none; pointer-events: none; z-index: 6; }
+        #north-indicator { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); color: #ff3b30; font-weight: bold; font-size: 28px; text-shadow: 0 0 10px #000, 0 0 5px #fff; display: none; pointer-events: none; z-index: 6; }
 
-        #distance-info { position: fixed; top: 80px; left: 0; width: 100%; text-align: center; color: white; z-index: 10; pointer-events: none; }
+        #distance-info { position: fixed; top: 90px; left: 0; width: 100%; text-align: center; color: white; z-index: 10; pointer-events: none; }
         .dist-text { font-size: 36px; font-weight: bold; text-shadow: 0 2px 15px #000; }
         .alt-text { font-size: 18px; text-shadow: 0 1px 8px #000; background: rgba(0,0,0,0.6); display: inline-block; padding: 4px 12px; border-radius: 12px; margin-top: 5px; font-weight: bold; }
         
@@ -288,14 +288,17 @@
             const brng = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
             let diffH = brng - state.heading; 
             if (diffH > 180) diffH -= 360; if (diffH < -180) diffH += 360;
+            
+            // 視野角内判定 (30度以内を表示)
+            const fov = 30; 
             if (i === state.activeIdx) {
-                if (Math.abs(diffH) > 30) {
-                    if (diffH < 0) { guideLeft.style.display = 'block'; guideRight.style.display = 'none'; }
-                    else { guideLeft.style.display = 'none'; guideRight.style.display = 'block'; }
-                } else { guideLeft.style.display = 'none'; guideRight.style.display = 'none'; }
+                if (diffH < -fov) { guideLeft.style.display = 'block'; guideRight.style.display = 'none'; }
+                else if (diffH > fov) { guideLeft.style.display = 'none'; guideRight.style.display = 'block'; }
+                else { guideLeft.style.display = 'none'; guideRight.style.display = 'none'; }
             }
-            if (Math.abs(diffH) < 30) {
-                const xPos = (50 + (diffH / 60) * 100);
+
+            if (Math.abs(diffH) < fov) {
+                const xPos = (50 + (diffH / (fov * 2)) * 100);
                 dot.style.left = `${xPos}%`; dot.style.top = `50%`; dot.style.display = 'block';
                 const size = Math.max(30, Math.min(180, 2500 / (Math.sqrt(distTotal) + 1)));
                 dot.style.width = dot.style.height = `${size}px`;
