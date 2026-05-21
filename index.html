@@ -300,7 +300,8 @@
             if (Math.abs(diffH) < fov) {
                 const xPos = (50 + (diffH / (fov * 2)) * 100);
                 dot.style.left = `${xPos}%`; dot.style.top = `50%`; dot.style.display = 'block';
-                const size = Math.max(30, Math.min(180, 2500 / (Math.sqrt(distTotal) + 1)));
+                // 距離に応じたサイズ計算 (近距離でも大きすぎないよう調整)
+                const size = Math.max(15, Math.min(60, 500 / (Math.sqrt(distTotal) + 1)));
                 dot.style.width = dot.style.height = `${size}px`;
                 dot.style.zIndex = Math.floor(1000 - distTotal);
             } else { dot.style.display = 'none'; }
