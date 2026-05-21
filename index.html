@@ -35,10 +35,11 @@
         .target-dot { position: absolute; width: 30px; height: 30px; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); display: none; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
         .target-label { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 1px 6px; border-radius: 8px; font-size: 10px; white-space: nowrap; font-weight: bold; }
         
-        #north-indicator { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); color: #ff3b30; font-weight: bold; font-size: 28px; text-shadow: 0 0 10px #000, 0 0 5px #fff; display: none; pointer-events: none; z-index: 6; }
+        #north-indicator { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); color: #ff3b30; font-weight: bold; font-size: 28px; text-shadow: 0 0 10px #000, 0 0 5px #fff; display: none; pointer-events: none; z-index: 6; text-align: center; }
+        #north-indicator::before { content: ""; display: block; width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 18px solid #ff3b30; margin: 0 auto 5px auto; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5)); }
 
-        #distance-info { position: fixed; top: 90px; left: 0; width: 100%; text-align: center; color: white; z-index: 10; pointer-events: none; }
-        .dist-text { font-size: 36px; font-weight: bold; text-shadow: 0 2px 15px #000; }
+        #distance-info { position: fixed; top: 100px; left: 0; width: 100%; text-align: center; color: white; z-index: 10; pointer-events: none; }
+        .dist-text { font-size: 32px; font-weight: bold; text-shadow: 0 2px 15px #000; }
         .alt-text { font-size: 18px; text-shadow: 0 1px 8px #000; background: rgba(0,0,0,0.6); display: inline-block; padding: 4px 12px; border-radius: 12px; margin-top: 5px; font-weight: bold; }
         
         #current-loc-display { position: fixed; top: 10px; left: 0; width: 100%; text-align: center; color: #00ff00; font-size: 10px; z-index: 20; pointer-events: none; text-shadow: 0 1px 3px #000; font-family: monospace; background: rgba(0,0,0,0.6); padding: 8px 0; line-height: 1.5; }
@@ -134,7 +135,7 @@
         currentJPR: null,
         targets: Array(5).fill(null).map((_, i) => {
             const saved = savedData[i] || {};
-            return { id: i, x: saved.x, y: saved.y, z: saved.z || 0, sys: saved.sys || 15, name: saved.name || `点${i+1}`, color: COLORS[i] };
+            return { id: i, x: saved.x || null, y: saved.y || null, z: saved.z || 0, sys: saved.sys || 15, name: saved.name || `点${i+1}`, color: COLORS[i] };
         }),
         activeIdx: 0,
         heading: 0, pitch: 0, active: false 
@@ -168,6 +169,7 @@
         document.getElementById('target-z').value = t.z || 0;
         document.getElementById('coord-system').value = t.sys || 15;
         document.getElementById('target-name').value = t.name || `点${idx+1}`;
+        update();
     }
 
     function showToast(msg, isError = false) {
@@ -256,7 +258,7 @@
                 state.active = true; startBtn.innerText = "座標を再更新して案内";
                 setTimeout(() => { if(!inputUi.classList.contains('collapsed')) toggleBtn.click(); }, 1000);
             } else {
-                saveBtn.click(); showToast("最新の座標で再計算しました");
+                saveBtn.click();
             }
         } catch (err) { showToast(err.message, true); }
     });
@@ -296,7 +298,6 @@
             let diffH = brng - state.heading; 
             if (diffH > 180) diffH -= 360; if (diffH < -180) diffH += 360;
             
-            // 視野角内判定 (30度以内を表示)
             const fov = 30; 
             if (i === state.activeIdx) {
                 if (diffH < -fov) { guideLeft.style.display = 'block'; guideRight.style.display = 'none'; }
@@ -307,19 +308,14 @@
             if (Math.abs(diffH) < fov) {
                 const xPos = (50 + (diffH / (fov * 2)) * 100);
                 dot.style.left = `${xPos}%`; dot.style.top = `50%`; dot.style.display = 'block';
-                // 距離に応じたサイズ計算 (近距離でも大きすぎないよう調整)
                 const size = Math.max(15, Math.min(60, 500 / (Math.sqrt(distTotal) + 1)));
                 dot.style.width = dot.style.height = `${size}px`;
                 dot.style.zIndex = Math.floor(1000 - distTotal);
             } else { dot.style.display = 'none'; }
         });
-        distVal.innerText = nearestDist === Infinity ? "--.--m" : `最寄まで約${nearestDist.toFixed(2)}m`;
-        altVal.innerText = nearestDist === Infinity ? "高低差: --.--m" : `高低差: ${nearestAlt > 0 ? '+' : ''}${nearestAlt.toFixed(2)}m`;
-    }
-</script>
-</body>
-</html>
-erText = nearestDist === Infinity ? "高低差: --.--m" : `高低差: ${nearestAlt > 0 ? '+' : ''}${nearestAlt.toFixed(2)}m`;
+
+        distVal.innerText = activeDist === Infinity ? "--.--m" : `${activeName}: 約${activeDist.toFixed(2)}m`;
+        altVal.innerText = activeDist === Infinity ? "高低差: --.--m" : `高低差: ${activeAlt > 0 ? '+' : ''}${activeAlt.toFixed(2)}m`;
     }
 </script>
 </body>
