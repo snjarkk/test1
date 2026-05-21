@@ -276,7 +276,8 @@
             northIndicator.style.display = 'none';
         }
 
-        let nearestDist = Infinity; let nearestAlt = 0;
+        let activeDist = Infinity; let activeAlt = 0; let activeName = "";
+        
         state.targets.forEach((t, i) => {
             const dot = document.getElementById(`dot-${i}`);
             if (t.x === null || t.y === null) { dot.style.display = 'none'; return; }
@@ -284,7 +285,13 @@
             const dx = t.x - currJPR.x, dy = t.y - currJPR.y;
             const distH = Math.sqrt(dx * dx + dy * dy);
             const distTotal = Math.sqrt(distH * distH + Math.pow(t.z - state.currentPos.alt, 2));
-            if (distTotal < nearestDist) { nearestDist = distTotal; nearestAlt = t.z - state.currentPos.alt; }
+            
+            if (i === state.activeIdx) {
+                activeDist = distTotal;
+                activeAlt = t.z - state.currentPos.alt;
+                activeName = t.name;
+            }
+
             const brng = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
             let diffH = brng - state.heading; 
             if (diffH > 180) diffH -= 360; if (diffH < -180) diffH += 360;
@@ -308,6 +315,11 @@
         });
         distVal.innerText = nearestDist === Infinity ? "--.--m" : `最寄まで約${nearestDist.toFixed(2)}m`;
         altVal.innerText = nearestDist === Infinity ? "高低差: --.--m" : `高低差: ${nearestAlt > 0 ? '+' : ''}${nearestAlt.toFixed(2)}m`;
+    }
+</script>
+</body>
+</html>
+erText = nearestDist === Infinity ? "高低差: --.--m" : `高低差: ${nearestAlt > 0 ? '+' : ''}${nearestAlt.toFixed(2)}m`;
     }
 </script>
 </body>
