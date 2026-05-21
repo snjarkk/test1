@@ -39,14 +39,14 @@
         .dist-text { font-size: 36px; font-weight: bold; text-shadow: 0 2px 15px #000; }
         .alt-text { font-size: 18px; text-shadow: 0 1px 8px #000; background: rgba(0,0,0,0.6); display: inline-block; padding: 4px 12px; border-radius: 12px; margin-top: 5px; font-weight: bold; }
         
-        #current-loc-display { position: fixed; top: 10px; left: 0; width: 100%; text-align: center; color: rgba(255,255,255,0.8); font-size: 10px; z-index: 20; pointer-events: none; text-shadow: 0 1px 3px #000; font-family: monospace; }
+        #current-loc-display { position: fixed; top: 10px; left: 0; width: 100%; text-align: center; color: rgba(255,255,255,0.9); font-size: 11px; z-index: 20; pointer-events: none; text-shadow: 0 1px 3px #000; font-family: monospace; background: rgba(0,0,0,0.3); padding: 5px 0; }
         
         #status-msg { background: rgba(0, 122, 255, 0.95); padding: 12px; border-radius: 10px; font-size: 14px; margin-top: 10px; display: none; pointer-events: auto; text-align: center; }
     </style>
 </head>
 <body>
 
-<div id="current-loc-display">現在地座標: 取得中...</div>
+<div id="current-loc-display">現在地座標(世界測地系): 取得中...</div>
 <video id="camera-view" autoplay playsinline muted></video>
 
 <svg id="guide-left" class="guide-arrow" viewBox="0 0 24 24" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
@@ -122,6 +122,7 @@
     
     let state = { 
         currentPos: null, 
+        currentJPR: null,
         targets: Array(5).fill(null).map((_, i) => {
             const saved = savedData[i] || {};
             return { 
@@ -141,6 +142,12 @@
         active: false 
     };
 
+    const ORIGINS = [
+        [33, 129.5], [33, 131], [36, 132.166666666], [33, 133.5], [36, 134.333333333], [36, 136], [36, 137.166666666], [36, 138.5],
+        [36, 139.833333333], [40, 140.833333333], [44, 140.25], [44, 142.25], [44, 144.25], [26, 142], [26, 127.5], [26, 124],
+        [26, 131], [20, 136], [26, 154]
+    ];
+
     // 初期化: タブとドットの生成
     state.targets.forEach((t, i) => {
         const tab = document.createElement('div');
@@ -159,7 +166,6 @@
         arOverlay.appendChild(dot);
     });
 
-    // 最初の点を選択
     selectPoint(0);
 
     function selectPoint(idx) {
@@ -187,61 +193,68 @@
     });
 
     /**
-     * 日本の平面直角座標 (X, Y) を緯度経度に変換
+     * 高精度ガウス・クリューゲル変換 (JPR <-> LatLng)
      */
-    function jprToLatLng(x, y, system) {
-        const origins = [
-            [33, 129.5], [33, 131], [36, 132.166666666], [33, 133.5], [36, 134.333333333], [36, 136], [36, 137.166666666], [36, 138.5],
-            [36, 139.833333333], [40, 140.833333333], [44, 140.25], [44, 142.25], [44, 144.25], [26, 142], [26, 127.5], [26, 124],
-            [26, 131], [20, 136], [26, 154]
-        ];
-        const org = origins[system - 1];
-        const phi0 = org[0] * Math.PI / 180, lam0 = org[1] * Math.PI / 180;
-        
+    function getGKConstants(phi0, lam0) {
         const a = 6378137.0, f = 1 / 298.257222101, m0 = 0.9999;
         const n = f / (2 - f);
         const ap = (a / (1 + n)) * (1 + Math.pow(n, 2) / 4 + Math.pow(n, 4) / 64);
-        
         const alpha = [null, 
             (3/2)*n - Math.pow(n,2) + (7/8)*Math.pow(n,3) - (11/64)*Math.pow(n,4),
             (15/16)*Math.pow(n,2) - (15/16)*Math.pow(n,3) + (71/128)*Math.pow(n,4),
             (35/48)*Math.pow(n,3) - (35/48)*Math.pow(n,4),
             (315/512)*Math.pow(n,4)
         ];
-        
         const beta = [null,
             (1/2)*n - (2/3)*Math.pow(n,2) + (37/96)*Math.pow(n,3) - (1/360)*Math.pow(n,4),
             (1/48)*Math.pow(n,2) + (1/15)*Math.pow(n,3) - (437/1440)*Math.pow(n,4),
             (17/480)*Math.pow(n,3) - (37/840)*Math.pow(n,4),
             (4397/161280) * Math.pow(n,4)
         ];
-        
         const delta = [null,
             2 * n - (2/3) * Math.pow(n,2) - 2 * Math.pow(n,3) + (116 / 45) * Math.pow(n,4),
             (7/3) * Math.pow(n,2) - (8/5) * Math.pow(n,3) - (227 / 45) * Math.pow(n,4),
             (56/15) * Math.pow(n,3) - (136 / 35) * Math.pow(n,4),
             (4271/315) * Math.pow(n,4)
         ];
+        return { a, f, m0, n, ap, alpha, beta, delta, phi0, lam0 };
+    }
 
-        let s_phi0 = phi0;
-        for (let j = 1; j <= 4; j++) s_phi0 += alpha[j] * Math.sin(2 * j * phi0);
-        s_phi0 *= ap;
-
-        const xi = (x + s_phi0) / (m0 * ap);
-        const et = y / (m0 * ap);
-        
+    function jprToLatLng(x, y, system) {
+        const org = ORIGINS[system - 1];
+        const c = getGKConstants(org[0] * Math.PI / 180, org[1] * Math.PI / 180);
+        let s_phi0 = c.phi0;
+        for (let j = 1; j <= 4; j++) s_phi0 += c.alpha[j] * Math.sin(2 * j * c.phi0);
+        s_phi0 *= c.ap;
+        const xi = (x + s_phi0) / (c.m0 * c.ap), et = y / (c.m0 * c.ap);
         let xi_p = xi, et_p = et;
         for (let j = 1; j <= 4; j++) {
-            xi_p -= beta[j] * Math.sin(2 * j * xi) * Math.cosh(2 * j * et);
-            et_p -= beta[j] * Math.cos(2 * j * xi) * Math.sinh(2 * j * et);
+            xi_p -= c.beta[j] * Math.sin(2 * j * xi) * Math.cosh(2 * j * et);
+            et_p -= c.beta[j] * Math.cos(2 * j * xi) * Math.sinh(2 * j * et);
         }
-        
         const chi = Math.asin(Math.sin(xi_p) / Math.cosh(et_p));
         let phi = chi;
-        for (let j = 1; j <= 4; j++) phi += delta[j] * Math.sin(2 * j * chi);
-        const lam = lam0 + Math.atan(Math.sinh(et_p) / Math.cos(xi_p));
-        
+        for (let j = 1; j <= 4; j++) phi += c.delta[j] * Math.sin(2 * j * chi);
+        const lam = c.lam0 + Math.atan(Math.sinh(et_p) / Math.cos(xi_p));
         return { lat: phi * 180 / Math.PI, lng: lam * 180 / Math.PI };
+    }
+
+    function latLngToJpr(lat, lng, system) {
+        const org = ORIGINS[system - 1];
+        const c = getGKConstants(org[0] * Math.PI / 180, org[1] * Math.PI / 180);
+        const phi = lat * Math.PI / 180, lam = lng * Math.PI / 180;
+        const t = Math.sinh(Math.atanh(Math.sin(phi)) - (2 * Math.sqrt(c.n) / (1 + c.n)) * Math.atanh((2 * Math.sqrt(c.n) / (1 + c.n)) * Math.sin(phi)));
+        const xi_p = Math.atan2(t, Math.cos(lam - c.lam0)), et_p = Math.atanh(Math.sin(lam - c.lam0) / Math.sqrt(1 + t * t));
+        let xi = xi_p, et = et_p;
+        for (let j = 1; j <= 4; j++) {
+            xi += c.alpha[j] * Math.sin(2 * j * xi_p) * Math.cosh(2 * j * et_p);
+            et += c.alpha[j] * Math.cos(2 * j * xi_p) * Math.sinh(2 * j * et_p);
+        }
+        let s_phi0 = c.phi0;
+        for (let j = 1; j <= 4; j++) s_phi0 += c.alpha[j] * Math.sin(2 * j * c.phi0);
+        s_phi0 *= c.ap;
+        const x = c.m0 * c.ap * xi - s_phi0, y = c.m0 * c.ap * et;
+        return { x, y };
     }
 
     saveBtn.addEventListener('click', () => {
@@ -250,123 +263,82 @@
         const z = parseFloat(document.getElementById('target-z').value) || 0;
         const sys = parseInt(document.getElementById('coord-system').value);
         const name = document.getElementById('target-name').value || `点${state.activeIdx+1}`;
-        
-        if (isNaN(x) || isNaN(y)) {
-            showToast("座標を入力してください", true);
-            return;
-        }
-        
+        if (isNaN(x) || isNaN(y)) { showToast("座標を入力してください", true); return; }
         const target = state.targets[state.activeIdx];
         target.x = x; target.y = y; target.z = z; target.sys = sys; target.name = name;
         target.latlng = jprToLatLng(x, y, sys);
-        
-        // UI更新
         document.getElementById(`tab-btn-${state.activeIdx}`).innerText = name;
         document.getElementById(`label-${state.activeIdx}`).innerText = name;
-        
-        // localStorage保存
         localStorage.setItem('ar_nav_points', JSON.stringify(state.targets));
-        
         showToast(`「${name}」を保存しました`);
         update();
     });
 
     startBtn.addEventListener('click', async () => {
         try {
-            // 方位センサー許可
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 const res = await DeviceOrientationEvent.requestPermission();
                 if (res !== 'granted') throw new Error("方位センサーの許可が必要です。");
             }
-
-            // カメラ・GPSの起動（初回のみ、または再計算）
             if (!state.active) {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                video.srcObject = stream;
-                video.play();
-
+                video.srcObject = stream; video.play();
                 navigator.geolocation.watchPosition(p => {
                     state.currentPos = { lat: p.coords.latitude, lng: p.coords.longitude, alt: p.coords.altitude || 0 };
-                    locDisplay.innerText = `現在地座標: ${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}`;
+                    const sys = parseInt(document.getElementById('coord-system').value);
+                    state.currentJPR = latLngToJpr(p.coords.latitude, p.coords.longitude, sys);
+                    locDisplay.innerText = `現在地座標(${sys}系): X=${state.currentJPR.x.toFixed(3)}, Y=${state.currentJPR.y.toFixed(3)}`;
                     update();
                 }, e => showToast("GPSエラー: " + e.message, true), { enableHighAccuracy: true });
-
                 window.addEventListener('deviceorientation', e => {
                     state.heading = e.webkitCompassHeading || (360 - e.alpha);
-                    state.pitch = e.beta;
-                    update();
+                    state.pitch = e.beta; update();
                 }, true);
-
-                state.active = true;
-                startBtn.innerText = "座標を再更新して案内";
+                state.active = true; startBtn.innerText = "座標を再更新して案内";
                 setTimeout(() => { if(!inputUi.classList.contains('collapsed')) toggleBtn.click(); }, 1000);
             } else {
-                // すでにアクティブな場合は、現在の入力を保存して再計算
-                saveBtn.click();
-                showToast("案内を最新の状態に更新しました");
+                saveBtn.click(); showToast("案内を最新の状態に更新しました");
                 setTimeout(() => { if(!inputUi.classList.contains('collapsed')) toggleBtn.click(); }, 800);
             }
-        } catch (err) {
-            showToast(err.message, true);
-        }
+        } catch (err) { showToast(err.message, true); }
     });
 
     function update() {
-        if (!state.active || !state.currentPos) return;
-        
-        let nearestDist = Infinity;
-        let nearestAlt = 0;
-
+        if (!state.active || !state.currentPos || !state.currentJPR) return;
+        let nearestDist = Infinity; let nearestAlt = 0;
         state.targets.forEach((t, i) => {
             const dot = document.getElementById(`dot-${i}`);
-            if (!t.latlng) {
-                dot.style.display = 'none';
-                return;
-            }
-
-            const p1 = state.currentPos, p2 = t.latlng;
-            const R = 6371000;
-            const dLat = (p2.lat - p1.lat) * Math.PI / 180, dLon = (p2.lng - p1.lng) * Math.PI / 180;
-            const a = Math.pow(Math.sin(dLat/2), 2) + Math.cos(p1.lat*Math.PI/180) * Math.cos(p2.lat*Math.PI/180) * Math.pow(Math.sin(dLon/2), 2);
-            const distH = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            const distV = t.z - p1.alt;
-            const distTotal = Math.sqrt(Math.pow(distH, 2) + Math.pow(distV, 2));
-
-            if (distTotal < nearestDist) {
-                nearestDist = distTotal;
-                nearestAlt = distV;
-            }
-
-            const y1 = p1.lat * Math.PI / 180, y2 = p2.lat * Math.PI / 180, dL = (p2.lng - p1.lng) * Math.PI / 180;
-            const brng = (Math.atan2(Math.sin(dL)*Math.cos(y2), Math.cos(y1)*Math.sin(y2)-Math.sin(y1)*Math.cos(y2)*Math.cos(dL)) * 180 / Math.PI + 360) % 360;
+            if (t.x === null || t.y === null) { dot.style.display = 'none'; return; }
             
+            // 案内計算を平面直角座標(X, Y)ベースに変更
+            const currJPR = latLngToJpr(state.currentPos.lat, state.currentPos.lng, t.sys);
+            const dx = t.x - currJPR.x, dy = t.y - currJPR.y;
+            const distH = Math.sqrt(dx * dx + dy * dy);
+            const distV = t.z - state.currentPos.alt;
+            const distTotal = Math.sqrt(distH * distH + distV * distV);
+
+            if (distTotal < nearestDist) { nearestDist = distTotal; nearestAlt = distV; }
+
+            // 方位角も平面直角座標系(Grid Bearing)で計算
+            const brng = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
             let diffH = brng - state.heading; 
             if (diffH > 180) diffH -= 360; if (diffH < -180) diffH += 360;
             
             const fovH = 60;
             if (i === state.activeIdx) {
-                if (diffH < -fovH/2) {
-                    guideLeft.style.display = 'block'; guideRight.style.display = 'none';
-                } else if (diffH > fovH/2) {
-                    guideLeft.style.display = 'none'; guideRight.style.display = 'block';
-                } else {
-                    guideLeft.style.display = 'none'; guideRight.style.display = 'none';
-                }
+                if (diffH < -fovH/2) { guideLeft.style.display = 'block'; guideRight.style.display = 'none'; } 
+                else if (diffH > fovH/2) { guideLeft.style.display = 'none'; guideRight.style.display = 'block'; } 
+                else { guideLeft.style.display = 'none'; guideRight.style.display = 'none'; }
             }
 
             if (Math.abs(diffH) < fovH/2) {
                 const xPos = (50 + (diffH / fovH) * 100);
-                dot.style.left = `${xPos}%`;
-                dot.style.top = `50%`;
-                dot.style.display = 'block';
+                dot.style.left = `${xPos}%`; dot.style.top = `50%`; dot.style.display = 'block';
                 const size = Math.max(30, Math.min(180, 2500 / (Math.sqrt(distTotal) + 1)));
                 dot.style.width = dot.style.height = `${size}px`;
                 dot.style.zIndex = Math.floor(1000 - distTotal);
-            } else {
-                dot.style.display = 'none';
-            }
+            } else { dot.style.display = 'none'; }
         });
-
         if (nearestDist !== Infinity) {
             distVal.innerText = `最寄まで約${nearestDist.toFixed(2)}m`;
             altVal.innerText = `高低差: ${nearestAlt > 0 ? '+' : ''}${nearestAlt.toFixed(2)}m`;
